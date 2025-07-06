@@ -1,0 +1,6 @@
+[submodule "AnyKernel3"]
+	path = AnyKernel3
+	url = https://github.com/Couchpotato-sauce/AnyKernel3.git
+[submodule "aarch64-linux-android-4.9"]
+	path = aarch64-linux-android-4.9
+	url = https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git

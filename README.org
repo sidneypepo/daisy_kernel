@@ -1,0 +1,192 @@
+#+title: README
+#+author: Sidney PEPO
+
+* daisy Kernel
+A mirror of the [[https://github.com/MiCode/Xiaomi_Kernel_OpenSource/tree/daisy-o-oss][official daisy Kernel (Android 8/Linux 3.18.71)]], but with patches for some Qualcomm exploitation.
+
+The original ~README~ can be read at [[file:README_original][README_original]].
+
+* Branches
+This repository is organized by branches, and each one may be useful in such specific exploitation steps. Check the list below:
+
+- ~master~: Here's the default branch. It contains the most recent updates and it's probably what you should use when doing some Qualcomm exploitation.
+
+- ~daisy-o-oss~: the actual daisy Kernel mirror, but without any modifications. The original source-tree is https://github.com/MiCode/Xiaomi_Kernel_OpenSource/tree/daisy-o-oss and the commit hash is ~6421aa5cdc56e9ef7c6329e0a05164503e1513ef~.
+
+  #+begin_quote
+Note: in order to avoid a large code base (we are talking about more than 10 GiB), this branch's commit history was intentionally truncated to the last official commit.
+  #+end_quote
+
+- ~base~: the base development/building environment. It's composed by the [[https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git/+/refs/heads/oreo-release][toolchain]], [[https://github.com/Couchpotato-sauce/AnyKernel3.git][LinkBoi00's AnyKernel3]], a [[file:build.sh][build script]] and a [[https://www.reddit.com/r/LineageOS/comments/hkq8ah/comment/fxk7a8u/][Kernel build patch]].
+
+# - ~bkerler~: all the [[https://github.com/bkerler/qcpatchtools/blob/master/patches/kernel/kernel_bq_msm8953.diff][MSM8953 Kernel patches by Bjoern Kerler]]. That's the base of our exploits!
+
+* Build & install
+This is pretty straight-forward, but make sure to read everything before executing any command!
+
+#+begin_quote
+Note: if you want to port the patches to other Kernel version or even other device, read the [[#Porting-to-other-targets][Porting to other targets]] section.
+#+end_quote
+
+** Prerequisites
+Your device should have (1) its bootloader unlocked and (2) a compatible TWRP with the flash feature working and (3) root access. About the TWRP, it doesn't matter if yours is actually installed or just temporarily booted (i.e. via ~fastboot~).
+
+Also, make sure that you've cloned this repo with the ~--recurse-submodules~ option. If you didn't, enter in the cloned repo and run
+
+#+begin_src sh
+git submodule update --init --recursive
+#+end_src
+
+Last, but no least, you *MUST* have a working backup Kernel image to rollback if you face any future errors! The easiest way to generate one is with TWRP. This way, check the [[#Backing-up-the-boot-image][Backing up the boot image]] and [[#Restoring-the-backed-up-boot-image][Restoring the backed up boot image]] sections in order to know how to backup your Kernel and how to restore it, respectively.
+
+*** Backing up the boot image
+1. Connect your daisy to your computer
+
+2. If your TWRP is installed, run
+
+   #+begin_src sh
+adb reboot recovery
+   #+end_src
+
+   If your TWRP is ephemeral (i.e. temporarily booted), run
+
+   #+begin_src sh
+adb reboot bootloader
+
+fastboot boot PATH/TO/twrp.img
+   #+end_src
+
+   #+begin_quote
+   Note: don't forget to change ~PATH/TO/~ to the actual path where your TWRP image is!
+   #+end_quote
+
+3. When the TWRP boots up, click in ~Backup~, check only the ~Boot~ checkbox, swipe to the right where it says ~Swipe to Backup~ and wait some seconds until it finishes the backup.
+
+4. Once it's done, the backup image will be stored at ~/sdcard/TWRP/BACKUPS/DEVICEID/DATE_ANDROIDBUILD~, so copy it to your computer with
+
+   #+begin_src sh
+adb pull /sdcard/TWRP/BACKUPS/DEVICEID/DATE_ANDROIDBUILD/boot.emmc.win PATH/TO/backup_boot.img
+   #+end_src
+
+   Don't forget to change ~DEVICEID/DATE_ANDROIDBUILD~ to the actual device id and current backup date, and ~PATH/TO/~ to the actual path where you want to store your backup image!
+
+5. Now verify the image's integrity by running
+
+   #+begin_src sh
+adb shell cat /sdcard/TWRP/BACKUPS/DEVICEID/DATE_ANDROIDBUILD/boot.emmc.win.sha2
+
+sha256sum PATH/TO/backup_boot.img
+   #+end_src
+
+   If the hashes are the same, you are good to go. Otherwise, repeat the steps 3, 4 and 5.
+
+   #+begin_quote
+   Optional: after copying *and verifying* your backup image, you can delete it from your device by running ~adb shell rm -r /sdcard/TWRP/BACKUPS/DEVICEID/DATE_ANDROIDBUILD~.
+   #+end_quote
+
+   #+begin_quote
+   Note: don't forget to change ~DEVICEID/DATE_ANDROIDBUILD~ to the actual device id and current backup date, and ~PATH/TO/~ to the actual path where you stored your backup image!
+   #+end_quote
+
+6. Now you can click ~Reboot System~ and wait for your Android to boot up.
+
+*** Restoring the backed up boot image
+1. With the backed up image, you should enter in the Android bootloader. To do this, run
+
+   #+begin_src sh
+adb reboot bootloader
+   #+end_src
+
+   If your Android isn't booting up at all to the point that you can run the command above (maybe it's in a boot loop), keep the ~Power~ *AND* ~Volume Down~ buttons pressed until the device reboot to the bootloader and then release the buttons.
+
+2. Now flash your backup image by running
+   #+begin_src sh
+fastboot flash boot_a PATH/TO/backup_boot.img
+
+fastboot flash boot_b PATH/TO/backup_boot.img
+   #+end_src
+
+   #+begin_quote
+   Note: don't forget to change ~PATH/TO/~ to the actual path where your backup image is!
+   #+end_quote
+
+3. If the flash commands finished with no errors, you can reboot your device by running
+
+   #+begin_src sh
+fastboot reboot
+   #+end_src
+
+** Building
+1. As any Linux Kernel, you should first apply a valid Kernel config. As this Kernel is for daisy devices, you should apply the ~daisy-perf_defconfig~ Kernel config. To do so, simply run
+
+   #+begin_src sh
+./build.sh make daisy-perf_defconfig
+   #+end_src
+
+2. Now we can build it. The easiest way to do this is by running
+
+   #+begin_src sh
+./build.sh all -jTHREADS
+   #+end_src
+
+   #+begin_quote
+   Note: make sure change ~THREADS~ by the amount of threads that you would like to use. With 5 threads, the build will take around 15 minutes.
+   #+end_quote
+
+** Installing
+1. If your Kernel was successfully built, it should be located at ~out/kernel_DATE.zip~. This way, connect your daisy to your computer, then copy the zip to it. The easier way to do this is by using ADB, so run
+
+   #+begin_src sh
+adb push PATH/TO/THIS/REPO/out/kernel_*.zip /sdcard
+   #+end_src
+
+   #+begin_quote
+   Note: don't forget to change ~PATH/TO/THIS/REPO~ to the actual path where this repo is!
+   #+end_quote
+
+2. Now we must enter in the TWRP to flash our built Kernel. If your TWRP is installed, run
+
+   #+begin_src sh
+adb reboot recovery
+   #+end_src
+
+   If your TWRP is ephemeral (i.e. temporarily booted), run
+
+   #+begin_src sh
+adb reboot bootloader
+
+fastboot boot PATH/TO/twrp.img
+   #+end_src
+
+   #+begin_quote
+   Note: don't forget to change ~PATH/TO/~ to the actual path where your TWRP image is!
+   #+end_quote
+
+3. When the TWRP boots up, click in ~Install~, select your Kernel zip, swipe to the right where it says ~Swipe to confirm Flash~ and wait some seconds until it finishes the flash.
+
+   #+begin_quote
+Optional: if the flash was successful, you can delete the Kernel zip from your device by running ~adb shell rm /sdcard/kernel_*.zip~.
+   #+end_quote
+
+4. Now click in ~Reboot~ and then in ~System~. If everything goes well, your Android should boot up.
+
+   Otherwise, follow instructions from the [[#Restoring-the-backed-up-boot-image][Restoring the backed up boot image]] section in order to restore your system to a working state. After this, check your Kernel modifications (configs/source-code changes) and repeat all the steps from the [[#Building][Building]] and [[#Installing][Installing]] sections.
+
+* Porting to other targets
+TODO.
+
+# If you would like to use an out-of-tree config, copy it to ~arch/DEVICE_ARCH/configs~ and name it ending with ~_defconfig~. Now edit the ~build.sh~ and change the ~ARCH~ variable (at line 19) to match your ~DEVICE_ARCH~. Finally, run
+
+# #+begin_src sh
+# ./build.sh make YOUR_CONFIG_defconfig
+# #+end_src
+
+# You can also create your own custom Kernel config. To do so, edit the ~ARCH~ variable from ~build.sh~ to match your ~DEVICE_ARCH~, run
+
+# #+begin_src sh
+# ./build.sh make defconfig
+
+# ./build.sh make nconfig
+# #+end_src
+
+# and customize your desired Kernel features.

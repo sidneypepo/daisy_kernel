@@ -2714,7 +2714,7 @@ int __qseecom_process_fsm_key_svc_cmd(struct qseecom_dev_handle *data_ptr,
 static int __validate_send_service_cmd_inputs(struct qseecom_dev_handle *data,
 				struct qseecom_send_svc_cmd_req *req)
 {
-	if (!req || !req->resp_buf || !req->cmd_req_buf) {
+ /*	if (!req || !req->resp_buf || !req->cmd_req_buf) {
 		pr_err("req or cmd buffer or response buffer is null\n");
 		return -EINVAL;
 	}
@@ -2792,7 +2792,7 @@ static int __validate_send_service_cmd_inputs(struct qseecom_dev_handle *data,
 					data->client.sb_length))) {
 		pr_err("cmd buf or resp buf is out of shared buffer region\n");
 		return -EINVAL;
-	}
+	}*/
 	return 0;
 }
 
@@ -2938,7 +2938,7 @@ static int __validate_send_cmd_inputs(struct qseecom_dev_handle *data,
 				struct qseecom_send_cmd_req *req)
 
 {
-	if (!data || !data->client.ihandle) {
+	/*if (!data || !data->client.ihandle) {
 		pr_err("Client or client handle is not initialized\n");
 		return -EINVAL;
 	}
@@ -3000,7 +3000,7 @@ static int __validate_send_cmd_inputs(struct qseecom_dev_handle *data,
 						data->client.sb_length))) {
 		pr_err("cmd buf or resp buf is out of shared buffer region\n");
 		return -EINVAL;
-	}
+	}*/
 	return 0;
 }
 
@@ -3047,6 +3047,8 @@ static int __qseecom_send_cmd(struct qseecom_dev_handle *data,
 				struct qseecom_send_cmd_req *req)
 {
 	int ret = 0;
+    size_t i;
+    char* buffer=NULL;
 	u32 reqd_len_sb_in = 0;
 	struct qseecom_client_send_data_ireq send_data_req = {0};
 	struct qseecom_client_send_data_64bit_ireq send_data_req_64bit = {0};
@@ -3092,6 +3094,23 @@ static int __qseecom_send_cmd(struct qseecom_dev_handle *data,
 				(void *)table + SGLISTINFO_TABLE_SIZE);
 		cmd_buf = (void *)&send_data_req;
 		cmd_len = sizeof(struct qseecom_client_send_data_ireq);
+		printk(KERN_INFO "Request pointer physical address: %p\n", (void*)&send_data_req.req_ptr);
+		printk(KERN_INFO "Response pointer physical address: %p\n", (void*)&send_data_req.rsp_ptr);
+
+/* Comment out below */
+	if (cmd_buf!=NULL)
+	{
+        buffer = kmalloc(2*cmd_len+1, GFP_ATOMIC);
+        buffer[0] = '\0';
+        for (i=0; i<cmd_len; i++) {
+                char sub_buf[3];
+                sprintf(sub_buf, "%02X", ((unsigned char*)cmd_buf)[i]);
+                strcat(buffer, sub_buf);
+        }
+        printk(KERN_INFO "qseecom_send_cmd(32): CONTENT OF SEND CMD: %s\n", buffer);
+        kfree(buffer);
+	}
+/* Comment out above */
 	} else {
 		send_data_req_64bit.app_id = data->client.app_id;
 		send_data_req_64bit.req_ptr = __qseecom_uvirt_to_kphys(data,
@@ -3121,6 +3140,22 @@ static int __qseecom_send_cmd(struct qseecom_dev_handle *data,
 				(void *)table + SGLISTINFO_TABLE_SIZE);
 		cmd_buf = (void *)&send_data_req_64bit;
 		cmd_len = sizeof(struct qseecom_client_send_data_64bit_ireq);
+        printk(KERN_INFO "Request64 pointer physical address: %p\n", (void*)&send_data_req_64bit.req_ptr);
+        printk(KERN_INFO "Response64 pointer physical address: %p\n", (void*)&send_data_req_64bit.rsp_ptr);
+/* Comment out below */
+	if (cmd_buf!=NULL)
+	{
+        buffer = kmalloc(2*cmd_len+1, GFP_ATOMIC);
+        buffer[0] = '\0';
+        for (i=0; i<cmd_len; i++) {
+                char sub_buf[3];
+                sprintf(sub_buf, "%02X", ((unsigned char*)cmd_buf)[i]);
+                strcat(buffer, sub_buf);
+        }
+        printk(KERN_INFO "qseecom_send_cmd(64): CONTENT OF SEND CMD: %s\n", buffer);
+        kfree(buffer);
+	}
+/* Comment out above */
 	}
 
 	if (qseecom.whitelist_support == false || data->use_legacy_cmd == true)
@@ -3199,7 +3234,7 @@ static int qseecom_send_cmd(struct qseecom_dev_handle *data, void __user *argp)
 int __boundary_checks_offset(struct qseecom_send_modfd_cmd_req *req,
 			struct qseecom_send_modfd_listener_resp *lstnr_resp,
 			struct qseecom_dev_handle *data, int i) {
-
+/*
 	if ((data->type != QSEECOM_LISTENER_SERVICE) &&
 						(req->ifd_data[i].fd > 0)) {
 			if ((req->cmd_req_len < sizeof(uint32_t)) ||
@@ -3219,6 +3254,7 @@ int __boundary_checks_offset(struct qseecom_send_modfd_cmd_req *req,
 				return -EINVAL;
 			}
 		}
+*/
 	return 0;
 }
 
@@ -3688,7 +3724,7 @@ static int __qseecom_send_modfd_cmd(struct qseecom_dev_handle *data,
 					bool is_64bit_addr)
 {
 	int ret = 0;
-	int i;
+	//int i;
 	struct qseecom_send_modfd_cmd_req req;
 	struct qseecom_send_cmd_req send_cmd_req;
 
@@ -3707,13 +3743,13 @@ static int __qseecom_send_modfd_cmd(struct qseecom_dev_handle *data,
 		return -EINVAL;
 
 	/* validate offsets */
-	for (i = 0; i < MAX_ION_FD; i++) {
+	/*for (i = 0; i < MAX_ION_FD; i++) {
 		if (req.ifd_data[i].cmd_buf_offset >= req.cmd_req_len) {
 			pr_err("Invalid offset %d = 0x%x\n",
 				i, req.ifd_data[i].cmd_buf_offset);
 			return -EINVAL;
 		}
-	}
+	}*/
 	req.cmd_req_buf = (void *)__qseecom_uvirt_to_kvirt(data,
 						(uintptr_t)req.cmd_req_buf);
 	req.resp_buf = (void *)__qseecom_uvirt_to_kvirt(data,
@@ -4707,7 +4743,7 @@ static int __validate_send_modfd_resp_inputs(struct qseecom_dev_handle *data,
 			struct qseecom_send_modfd_listener_resp *resp,
 			struct qseecom_registered_listener_list *this_lstnr)
 {
-	int i;
+	//int i;
 
 	if (!data || !resp || !this_lstnr) {
 		pr_err("listener handle or resp msg is null\n");
@@ -4748,13 +4784,13 @@ static int __validate_send_modfd_resp_inputs(struct qseecom_dev_handle *data,
 	}
 
 	/* validate offsets */
-	for (i = 0; i < MAX_ION_FD; i++) {
+	/*for (i = 0; i < MAX_ION_FD; i++) {
 		if (resp->ifd_data[i].cmd_buf_offset >= resp->resp_len) {
 			pr_err("Invalid offset %d = 0x%x\n",
 				i, resp->ifd_data[i].cmd_buf_offset);
 			return -EINVAL;
 		}
-	}
+	}*/
 
 	return 0;
 }
@@ -6648,7 +6684,7 @@ static int qseecom_qteec_invoke_modfd_cmd(struct qseecom_dev_handle *data,
 	bool found_app = false;
 	unsigned long flags;
 	int ret = 0;
-	int i = 0;
+	//int i = 0;
 	uint32_t reqd_len_sb_in = 0;
 	void *cmd_buf = NULL;
 	size_t cmd_len;
@@ -6687,12 +6723,12 @@ static int qseecom_qteec_invoke_modfd_cmd(struct qseecom_dev_handle *data,
 	}
 
 	/* validate offsets */
-	for (i = 0; i < MAX_ION_FD; i++) {
+	/*for (i = 0; i < MAX_ION_FD; i++) {
 		if (req.ifd_data[i].fd) {
 			if (req.ifd_data[i].cmd_buf_offset >= req.req_len)
 				return -EINVAL;
 		}
-	}
+	}*/
 	req.req_ptr = (void *)__qseecom_uvirt_to_kvirt(data,
 						(uintptr_t)req.req_ptr);
 	req.resp_ptr = (void *)__qseecom_uvirt_to_kvirt(data,
@@ -6869,6 +6905,83 @@ static void __qseecom_bus_scaling_disable(struct qseecom_dev_handle *data,
 	}
 }
 
+static int send_atomic_scm(void __user *argp)
+{
+    int ret = 0;
+	struct qseecom_send_atomic_scm_req req;
+	ret = copy_from_user(&req, argp, sizeof(req));
+	if (ret) {
+	pr_err("copy_from_user failed\n");
+		return ret;
+	}
+	pr_warning("Going to send atomic SCM request\n");
+    if (req.num_args == 1) {
+        struct scm_desc desc = {
+			.args[0] = req.arg1,
+			.arginfo = SCM_ARGS(1),
+		};
+		scm_call2_atomic(req.svc_id, &desc);
+		pr_info("result = 0x%x, resp_type = 0x%x, data = 0x%x\n",
+		(u32)desc.ret[0], (u32)desc.ret[1], (u32)desc.ret[2]);
+		ret=desc.ret[0];
+    }
+    else if (req.num_args == 2) {
+        struct scm_desc desc = {
+			.args[0] = req.arg1,
+			.args[1] = req.arg2,
+			.arginfo = SCM_ARGS(2),
+		};
+		scm_call2_atomic(req.svc_id, &desc);
+		pr_info("result = 0x%x, resp_type = 0x%x, data = 0x%x\n",
+		(u32)desc.ret[0], (u32)desc.ret[1], (u32)desc.ret[2]);
+		ret=desc.ret[0];
+    }
+    else if (req.num_args == 3) {
+        struct scm_desc desc = {
+			.args[0] = req.arg1,
+			.args[1] = req.arg2,
+			.args[2] = req.arg3,
+			.arginfo = SCM_ARGS(3),
+		};
+		scm_call2_atomic(req.svc_id, &desc);
+		pr_info("result = 0x%x, resp_type = 0x%x, data = 0x%x\n",
+		(u32)desc.ret[0], (u32)desc.ret[1], (u32)desc.ret[2]);
+		ret=desc.ret[0];
+    }
+    else if (req.num_args == 4) {
+        struct scm_desc desc = {
+			.args[0] = req.arg1,
+			.args[1] = req.arg2,
+			.args[2] = req.arg3,
+			.args[3] = req.arg4,
+			.arginfo = SCM_ARGS(4),
+		};
+		scm_call2_atomic(req.svc_id, &desc);
+		pr_info("result = 0x%x, resp_type = 0x%x, data = 0x%x\n",
+		(u32)desc.ret[0], (u32)desc.ret[1], (u32)desc.ret[2]);
+		ret=desc.ret[0];
+    }
+    
+	pr_warning("Finished raw SCM request\n");
+
+	return ret;
+}
+
+static int send_raw_scm(void __user *argp)
+{
+	int ret = 0;
+	struct qseecom_send_raw_scm_req req;
+	ret = copy_from_user(&req, argp, sizeof(req));
+	if (ret) {
+		pr_err("copy_from_user failed\n");
+		return ret;
+	}
+	pr_warning("Going to send raw SCM request (no remap error!)\n");
+	ret = scm_call_no_remap_error(req.svc_id, req.cmd_id, req.cmd_req_buf, req.cmd_req_len, req.resp_buf, req.resp_len);
+	pr_warning("Finished raw SCM request\n");
+	return ret;
+}
+
 long qseecom_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -6887,6 +7000,24 @@ long qseecom_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 	}
 
 	switch (cmd) {
+     case QSEECOM_IOCTL_SEND_RAW_SCM: {
+		atomic_inc(&data->ioctl_count);
+		ret = send_raw_scm(argp);
+		atomic_dec(&data->ioctl_count);
+    	wake_up_all(&data->abort_wq);
+		if (ret && (ret != -ERESTARTSYS))
+			pr_err("failed ioctl_send_raw: %d\n", ret);
+		break;
+	}
+    case QSEECOM_IOCTL_SEND_ATOMIC_SCM: {
+		atomic_inc(&data->ioctl_count);
+		ret = send_atomic_scm(argp);
+		atomic_dec(&data->ioctl_count);
+    	wake_up_all(&data->abort_wq);
+		if (ret && (ret != -ERESTARTSYS))
+			pr_err("failed ioctl_send_atomic: %d\n", ret);       
+        break;
+    }
 	case QSEECOM_IOCTL_REGISTER_LISTENER_REQ: {
 		if (data->type != QSEECOM_GENERIC) {
 			pr_err("reg lstnr req: invalid handle (%d)\n",

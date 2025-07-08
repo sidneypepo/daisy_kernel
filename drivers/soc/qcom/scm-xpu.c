@@ -32,7 +32,7 @@ static int __init xpu_err_fatal_init(void)
 	struct scm_desc desc = {0};
 
 	desc.arginfo = SCM_ARGS(2);
-	desc.args[0] = cmd.config = ERR_FATAL_VAL;
+	desc.args[0] = cmd.config = 0x1;
 	desc.args[1] = cmd.spare = 0;
 
 	if (!is_scm_armv8())

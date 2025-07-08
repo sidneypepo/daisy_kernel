@@ -18,8 +18,9 @@
 
 ARCH="arm64"	 # If your target is not an aarch64 (arm64) device, change this
 
-MAKEOPTS=" ${2}" # If you want to avoid manually writing make options, add then
-		 # here, right after the first quote
+MAKEOPTS="${2}"  # If you want to avoid manually writing make options, add them
+		 # here, right before the second quote. Don't forget to add a
+		 # space after the second curly brace!
 
 SRC="$(pwd)/$(dirname "${0}")"
 TOOLCHAIN="${SRC}/aarch64-linux-android-4.9/bin/aarch64-linux-android-"

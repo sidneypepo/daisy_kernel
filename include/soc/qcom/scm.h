@@ -99,6 +99,10 @@ struct scm_desc {
 extern int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
 		void *resp_buf, size_t resp_len);
 
+extern int scm_call_no_remap_error(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,void *resp_buf, size_t resp_len);
+extern int scm_call_with_command(u32 svc_id, u32 cmd_id, u32 len, u32 buf_offset, 
+                          u32 resp_hdr_offset);
+
 extern int scm_call2(u32 cmd_id, struct scm_desc *desc);
 
 extern int scm_call2_atomic(u32 cmd_id, struct scm_desc *desc);

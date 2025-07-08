@@ -9,17 +9,19 @@ The original ~README~ can be read at [[file:README_original][README_original]].
 * Branches
 This repository is organized by branches, and each one may be useful in such specific exploitation steps. Check the list below:
 
-- ~master~: Here's the default branch. It contains the most recent updates and it's probably what you should use when doing some Qualcomm exploitation.
+- ~master~: the default branch. It contains the most recent updates and it's probably what you should use when doing some Qualcomm exploitation.
+
+- ~dev~: stuff under development. Unless you're contributing to this repo, you should NOT use anything from this branch, as its code will be mostly unfinished and broken.
+
+- ~bkerler~: all the [[https://github.com/bkerler/qcpatchtools/blob/master/patches/kernel/kernel_bq_msm8953.diff][MSM8953 Kernel patches by Bjoern Kerler]]. That's the base of our exploits!
+
+- ~base~: the base development/building environment. It's composed by the [[https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git/+/refs/heads/oreo-release][toolchain]], [[https://github.com/Couchpotato-sauce/AnyKernel3.git][LinkBoi00's AnyKernel3]], a [[file:build.sh][build script]] and a [[https://www.reddit.com/r/LineageOS/comments/hkq8ah/comment/fxk7a8u/][Kernel build patch]]. It's also the base branch for all the branches above.
 
 - ~daisy-o-oss~: the actual daisy Kernel mirror, but without any modifications. The original source-tree is https://github.com/MiCode/Xiaomi_Kernel_OpenSource/tree/daisy-o-oss and the commit hash is ~6421aa5cdc56e9ef7c6329e0a05164503e1513ef~.
 
   #+begin_quote
 Note: in order to avoid a large code base (we are talking about more than 10 GiB), this branch's commit history was intentionally truncated to the last official commit.
   #+end_quote
-
-- ~base~: the base development/building environment. It's composed by the [[https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git/+/refs/heads/oreo-release][toolchain]], [[https://github.com/Couchpotato-sauce/AnyKernel3.git][LinkBoi00's AnyKernel3]], a [[file:build.sh][build script]] and a [[https://www.reddit.com/r/LineageOS/comments/hkq8ah/comment/fxk7a8u/][Kernel build patch]].
-
-# - ~bkerler~: all the [[https://github.com/bkerler/qcpatchtools/blob/master/patches/kernel/kernel_bq_msm8953.diff][MSM8953 Kernel patches by Bjoern Kerler]]. That's the base of our exploits!
 
 * Build & install
 This is pretty straight-forward, but make sure to read everything before executing any command!
@@ -29,7 +31,7 @@ Note: if you want to port the patches to other Kernel version or even other devi
 #+end_quote
 
 ** Prerequisites
-Your device should have (1) its bootloader unlocked and (2) a compatible TWRP with the flash feature working and (3) root access. About the TWRP, it doesn't matter if yours is actually installed or just temporarily booted (i.e. via ~fastboot~).
+Your device should have (1) its bootloader unlocked, (2) a compatible TWRP with the flash feature working and (3) root access. About the TWRP, it doesn't matter if yours is actually installed or just temporarily booted (i.e. via ~fastboot~).
 
 Also, make sure that you've cloned this repo with the ~--recurse-submodules~ option. If you didn't, enter in the cloned repo and run
 
@@ -57,7 +59,7 @@ fastboot boot PATH/TO/twrp.img
    #+end_src
 
    #+begin_quote
-   Note: don't forget to change ~PATH/TO/~ to the actual path where your TWRP image is!
+   Note: don't forget to change ~PATH/TO~ to the actual path where your TWRP image is!
    #+end_quote
 
 3. When the TWRP boots up, click in ~Backup~, check only the ~Boot~ checkbox, swipe to the right where it says ~Swipe to Backup~ and wait some seconds until it finishes the backup.
@@ -68,7 +70,7 @@ fastboot boot PATH/TO/twrp.img
 adb pull /sdcard/TWRP/BACKUPS/DEVICEID/DATE_ANDROIDBUILD/boot.emmc.win PATH/TO/backup_boot.img
    #+end_src
 
-   Don't forget to change ~DEVICEID/DATE_ANDROIDBUILD~ to the actual device id and current backup date, and ~PATH/TO/~ to the actual path where you want to store your backup image!
+   Don't forget to change ~DEVICEID/DATE_ANDROIDBUILD~ to the actual device id and current backup date, and ~PATH/TO~ to the actual path where you want to store your backup image!
 
 5. Now verify the image's integrity by running
 
@@ -85,7 +87,7 @@ sha256sum PATH/TO/backup_boot.img
    #+end_quote
 
    #+begin_quote
-   Note: don't forget to change ~DEVICEID/DATE_ANDROIDBUILD~ to the actual device id and current backup date, and ~PATH/TO/~ to the actual path where you stored your backup image!
+   Note: don't forget to change ~DEVICEID/DATE_ANDROIDBUILD~ to the actual device id and current backup date, and ~PATH/TO~ to the actual path where you stored your backup image!
    #+end_quote
 
 6. Now you can click ~Reboot System~ and wait for your Android to boot up.
@@ -107,7 +109,7 @@ fastboot flash boot_b PATH/TO/backup_boot.img
    #+end_src
 
    #+begin_quote
-   Note: don't forget to change ~PATH/TO/~ to the actual path where your backup image is!
+   Note: don't forget to change ~PATH/TO~ to the actual path where your backup image is!
    #+end_quote
 
 3. If the flash commands finished with no errors, you can reboot your device by running
@@ -159,7 +161,7 @@ fastboot boot PATH/TO/twrp.img
    #+end_src
 
    #+begin_quote
-   Note: don't forget to change ~PATH/TO/~ to the actual path where your TWRP image is!
+   Note: don't forget to change ~PATH/TO~ to the actual path where your TWRP image is!
    #+end_quote
 
 3. When the TWRP boots up, click in ~Install~, select your Kernel zip, swipe to the right where it says ~Swipe to confirm Flash~ and wait some seconds until it finishes the flash.

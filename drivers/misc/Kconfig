@@ -521,12 +521,13 @@ config SRAM
 	  areas found on many SoCs.
 
 config QSEECOM
-        tristate "QTI Secure Execution Communicator driver"
-        help
-          Provides a communication interface between userspace and
-          QTI Secure Execution Environment (QSEE) using Secure Channel
-          Manager (SCM) interface. It exposes APIs for both userspace and
-          kernel clients.
+	tristate "QTI Secure Execution Communicator driver"
+	depends on SKTRC
+	help
+	  Provides a communication interface between userspace and
+	  QTI Secure Execution Environment (QSEE) using Secure Channel
+	  Manager (SCM) interface. It exposes APIs for both userspace and
+	  kernel clients.
 
 config HDCP_QSEECOM
 	tristate "QTI High-Bandwidth Digital Content Protection Module"

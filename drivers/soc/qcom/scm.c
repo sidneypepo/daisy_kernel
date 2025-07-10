@@ -10,6 +10,8 @@
  * GNU General Public License for more details.
  */
 
+#include <trace/sktrc.h>
+
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -292,26 +294,34 @@ static int scm_call_common(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 	unsigned long start, end;
 
 	//DEBUG: Printing information about the outgoing request
-	printk(KERN_INFO "scm_call_common\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d\n", svc_id, cmd_id);
+	sktrc(SKTRC_HASH(1, 0, 2, 1), "SVC_ID: %d, CMD_ID: %d", svc_id, cmd_id);
 	if (cmd_buf != NULL) {
 		size_t i;
-		char* buffer = kmalloc(2*cmd_len+1, GFP_ATOMIC);
+		char* buffer = kmalloc(2 * cmd_len + 1, GFP_ATOMIC);
+		if (IS_ERR_OR_NULL(buffer)) {
+			sktrc(SKTRC_HASH(1, 0, 2, 1),
+			      "failed to alloc memory (2 * %zu + 1) (fail1)",
+			      cmd_len);
+			goto fail1;
+		}
 		buffer[0] = '\0';
-		for (i=0; i<cmd_len; i++) {
+		for (i = 0; i < cmd_len; ++i) {
 			char sub_buf[3];
-			sprintf(sub_buf, "%02X", ((unsigned char*)cmd_buf)[i]); 
+			snprintf(sub_buf, 3, "%02X", ((unsigned char*)cmd_buf)[i]); 
 			strcat(buffer, sub_buf);
 		}
-		printk(KERN_INFO "CMD BUF: %s\n", buffer);
+		sktrc(SKTRC_HASH(1, 0, 2, 1), "CMD BUF: %s", buffer);
 		kfree(buffer);
 	}
 
+fail1:
 	scm_buf->len = scm_buf_length;
 	scm_buf->buf_offset = offsetof(struct scm_command, buf);
 	scm_buf->resp_hdr_offset = scm_buf->buf_offset + cmd_len;
 	scm_buf->id = (svc_id << 10) | cmd_id;
-	//printk(KERN_INFO "Response buffer address: virtual-%08X, physical-%08X\n", scm_buf->resp_hdr_offset, virt_to_phys((void*)((unsigned)scm_buf->resp_hdr_offset)));
+	/* sktrc(SKTRC_HASH(1, 0, 2, 1), "Response buffer address: virtual-%08X, physical-%08X", */
+	/*       scm_buf->resp_hdr_offset, */
+	/*       virt_to_phys((void*)((unsigned)scm_buf->resp_hdr_offset))); */
 	if (cmd_buf)
 		memcpy(scm_get_command_buffer(scm_buf), cmd_buf, cmd_len);
 
@@ -320,7 +330,7 @@ static int scm_call_common(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 	mutex_unlock(&scm_lock);
 	if (ret)
 	{
-		printk(KERN_INFO "SCM Call returned\n");
+		sktrc(SKTRC_HASH(1, 0, 2, 1), "SCM Call returned");
 		return ret;
 	}
 
@@ -337,21 +347,28 @@ static int scm_call_common(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 	if (resp_buf)
 		memcpy(resp_buf, scm_get_response_buffer(rsp), resp_len);
 
-    //DEBUG
-	printk(KERN_INFO "scm_call_common_response");
+	//DEBUG
+	sktrc(SKTRC_HASH(1, 0, 2, 1), "scm_call_common_response");
 	if (resp_buf != NULL) {
 		size_t i;
-                char* buffer = kmalloc(2*resp_len+1, GFP_ATOMIC);
+                char* buffer = kmalloc(2 * resp_len + 1, GFP_ATOMIC);
+		if (IS_ERR_OR_NULL(buffer)) {
+			sktrc(SKTRC_HASH(1, 0, 2, 1),
+			      "failed to alloc memory (2 * %zu + 1) (fail2)",
+			      cmd_len);
+			goto fail2;
+		}
                 buffer[0] = '\0';
-                for (i=0; i<resp_len; i++) {
+                for (i = 0; i < resp_len; ++i) {
                         char sub_buf[3];
-                        sprintf(sub_buf, "%02X", ((unsigned char*)resp_buf)[i]);
+                        snprintf(sub_buf, 3, "%02X", ((unsigned char*)resp_buf)[i]);
                         strcat(buffer, sub_buf);
                 }
-		printk(KERN_INFO "SCM RESP BUF: %s\n", buffer);
+		sktrc(SKTRC_HASH(1, 0, 2, 1), "SCM RESP BUF: %s", buffer);
                 kfree(buffer);
 	}
 
+fail2:
 	return ret;
 }
 
@@ -370,16 +387,19 @@ static int _scm_call_retry(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 	int ret, retry_count = 0;
 
 	do {
+		sktrc(SKTRC_HASH(1, 0, 2, 2), "scm_call_common");
 		ret = scm_call_common(svc_id, cmd_id, cmd_buf, cmd_len,
 					resp_buf, resp_len, cmd, len);
 		if (ret == SCM_EBUSY)
 			msleep(SCM_EBUSY_WAIT_MS);
 		if (retry_count == 33)
-			pr_warn("scm: secure world has been busy for 1 second!\n");
+			sktrc(SKTRC_HASH(1, 0, 2, 2),
+			      "scm: secure world has been busy for 1 second!");
 	} while (ret == SCM_EBUSY && (retry_count++ < SCM_EBUSY_MAX_RETRY));
 
 	if (ret == SCM_EBUSY)
-		pr_err("scm: secure world busy (rc = SCM_EBUSY)\n");
+		sktrc(SKTRC_HASH(1, 0, 2, 2),
+		      "scm: secure world busy (rc = SCM_EBUSY)");
 
 	return ret;
 }
@@ -406,6 +426,7 @@ int scm_call_noalloc(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 
 	memset(scm_buf, 0, scm_buf_len);
 
+	sktrc(SKTRC_HASH(1, 0, 2, 3), "scm_call_common");
 	ret = scm_call_common(svc_id, cmd_id, cmd_buf, cmd_len, resp_buf,
 				resp_len, scm_buf, len);
 	return ret;
@@ -637,7 +658,8 @@ static int allocate_extra_arg_buffer(struct scm_desc *desc, gfp_t flags)
 
 	argbuf = kzalloc(argbuflen, flags);
 	if (!argbuf) {
-		pr_err("scm_call: failed to alloc mem for extended argument buffer\n");
+		sktrc(SKTRC_HASH(1, 2, 2, 22),
+		      "failed to alloc mem for extended argument buffer");
 		return -ENOMEM;
 	}
 
@@ -688,10 +710,11 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 	if (unlikely(!is_scm_armv8()))
 		return -ENODEV;
 
-	printk(KERN_INFO "scm_call2\n");
-	printk(KERN_INFO "SVC_ID+CMD_ID: %08X\n", fn_id);
+	sktrc(SKTRC_HASH(1, 0, 2, 5), "SVC_ID+CMD_ID: %08X", fn_id);
 	if (desc != NULL) {
-		printk(KERN_INFO "Args: %#llx, %#llx, %#llx, x5:%#llx\n", desc->args[0], desc->args[1], desc->args[2], desc->x5);
+		sktrc(SKTRC_HASH(1, 0, 2, 5),
+		      "Args: %#llx, %#llx, %#llx, x5:%#llx", desc->args[0],
+		      desc->args[1], desc->args[2], desc->x5);
 	}
 
 	ret = allocate_extra_arg_buffer(desc, GFP_KERNEL);
@@ -733,15 +756,18 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 		if (ret == SCM_V2_EBUSY)
 			msleep(SCM_EBUSY_WAIT_MS);
 		if (retry_count == 33)
-			pr_warn("scm: secure world has been busy for 1 second!\n");
+			sktrc(SKTRC_HASH(1, 0, 2, 5),
+			      "scm: secure world has been busy for 1 second!");
 	}  while (ret == SCM_V2_EBUSY && (retry_count++ < SCM_EBUSY_MAX_RETRY));
 
 	if (ret < 0)
-		pr_err("scm_call2 failed: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
-			x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
+		sktrc(SKTRC_HASH(1, 0, 2, 5),
+		      "scm_call2 failed: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx",
+		      x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
 
-    printk(KERN_INFO "scm_call2: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
-			x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
+	sktrc(SKTRC_HASH(1, 0, 2, 5),
+	      "scm_call2: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx",
+	      x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
 
 	if (arglen > N_REGISTER_ARGS)
 		kfree(desc->extra_arg_buf);
@@ -768,13 +794,14 @@ int scm_call2_atomic(u32 fn_id, struct scm_desc *desc)
 	if (unlikely(!is_scm_armv8()))
 		return -ENODEV;
 
-	printk(KERN_INFO "Sending SCM2 Atomic Command\n");
-	printk(KERN_INFO "SVC_ID+CMD_ID: %08X\n", fn_id);
+	sktrc(SKTRC_HASH(1, 0, 2, 10), "Sending SCM2 Atomic Command");
+	sktrc(SKTRC_HASH(1, 0, 2, 10), "SVC_ID+CMD_ID: %08X", fn_id);
 	if (desc != NULL) {
-		printk(KERN_INFO "scm_call2_atomic: func id %#llx, args: %#x, %#llx, %#llx, %#llx, %#llx\n",
-		x0, desc->arginfo, desc->args[0], desc->args[1],
-		desc->args[2], desc->x5);	
-    }
+		sktrc(SKTRC_HASH(1, 0, 2, 10),
+		      "scm_call2_atomic: func id %#llx, args: %#x, %#llx, %#llx, %#llx, %#llx",
+		      x0, desc->arginfo, desc->args[0], desc->args[1],
+		      desc->args[2], desc->x5);	
+	}
 
 	ret = allocate_extra_arg_buffer(desc, GFP_ATOMIC);
 	if (ret)
@@ -793,13 +820,14 @@ int scm_call2_atomic(u32 fn_id, struct scm_desc *desc)
 					  desc->x5, &desc->ret[0],
 					  &desc->ret[1], &desc->ret[2]);
 
-	printk(KERN_INFO "scm_call2_atomic: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
-					x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
+	sktrc(SKTRC_HASH(1, 0, 2, 10),
+	      "scm_call2_atomic: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx",
+	      x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
   
 	if (ret < 0)
-		pr_err("scm_call failed: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
-			x0, ret, desc->ret[0],
-			desc->ret[1], desc->ret[2]);
+		sktrc(SKTRC_HASH(1, 0, 2, 10),
+		      "scm_call failed: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx",
+		      x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
 
 	if (arglen > N_REGISTER_ARGS)
 		kfree(desc->extra_arg_buf);
@@ -837,9 +865,13 @@ int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
 		return -EINVAL;
 
 	cmd = kzalloc(PAGE_ALIGN(len), GFP_KERNEL);
-	if (!cmd)
+	if (!cmd) {
+		sktrc(SKTRC_HASH(1, 0, 2, 4), "fail to alloc memory (%ld)",
+		      ENOMEM);
 		return -ENOMEM;
+	}
 
+	sktrc(SKTRC_HASH(1, 0, 2, 4), "scm_call_common");
 	ret = scm_call_common(svc_id, cmd_id, cmd_buf, cmd_len, resp_buf,
 				resp_len, cmd, len);
 	if (unlikely(ret == SCM_EBUSY))
@@ -874,8 +906,8 @@ s32 scm_call_atomic1(u32 svc, u32 cmd, u32 arg1)
 	register u32 r2 asm("r2") = arg1;
 
    	//DEBUG: Printing information about the outgoing request
-	printk(KERN_INFO "scm_call_atomic1\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x\n", svc, cmd, arg1);
+	sktrc(SKTRC_HASH(1, 0, 2, 13), "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x",
+	      svc, cmd, arg1);
 
 	asm volatile(
 		__asmeq("%0", R0_STR)
@@ -889,7 +921,7 @@ s32 scm_call_atomic1(u32 svc, u32 cmd, u32 arg1)
 		: "=r" (r0)
 		: "r" (r0), "r" (r1), "r" (r2)
 		: "r3");
-	printk(KERN_INFO "Ret: %d\n", r0);
+	sktrc(SKTRC_HASH(1, 0, 2, 13), "Ret: %d", r0);
 	return r0;
 }
 EXPORT_SYMBOL(scm_call_atomic1);
@@ -912,8 +944,8 @@ s32 scm_call_atomic1_1(u32 svc, u32 cmd, u32 arg1, u32 *ret1)
 	register u32 r2 asm("r2") = arg1;
 
 	//DEBUG: Printing information about the outgoing request
-	printk(KERN_INFO "scm_call_atomic1_1\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: 0x%x, ARG1: 0x%x\n", svc, cmd, arg1);
+	sktrc(SKTRC_HASH(1, 0, 2, 14), "SVC_ID: %d, CMD_ID: 0x%x, ARG1: 0x%x", svc, cmd,
+	      arg1);
 
 	asm volatile(
 		__asmeq("%0", R0_STR)
@@ -922,7 +954,7 @@ s32 scm_call_atomic1_1(u32 svc, u32 cmd, u32 arg1, u32 *ret1)
 		__asmeq("%3", R1_STR)
 		__asmeq("%4", R2_STR)
 #ifdef REQUIRES_SEC
-			".arch_extension sec\n"
+		".arch_extension sec\n"
 #endif
 		"smc	#0\n"
 		: "=r" (r0), "=r" (r1)
@@ -931,8 +963,8 @@ s32 scm_call_atomic1_1(u32 svc, u32 cmd, u32 arg1, u32 *ret1)
 	if (ret1)
 		*ret1 = r1;
 
-    printk(KERN_INFO "Ret1: 0x%08X\n", r1);
-    printk(KERN_INFO "Ret: 0x%08X\n", r0);
+	sktrc(SKTRC_HASH(1, 0, 2, 14), "Ret1: 0x%08X", r1);
+	sktrc(SKTRC_HASH(1, 0, 2, 14), "Ret: 0x%08X", r0);
 
 	return r0;
 }
@@ -956,8 +988,8 @@ s32 scm_call_atomic2(u32 svc, u32 cmd, u32 arg1, u32 arg2)
 	register u32 r2 asm("r2") = arg1;
 	register u32 r3 asm("r3") = arg2;
 
-    printk(KERN_INFO "scm_call_atomic2\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x\n", svc, cmd, arg1, arg2);
+	sktrc(SKTRC_HASH(1, 0, 2, 15), "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x", svc,
+	      cmd, arg1, arg2);
 
 	asm volatile(
 		__asmeq("%0", R0_STR)
@@ -966,13 +998,13 @@ s32 scm_call_atomic2(u32 svc, u32 cmd, u32 arg1, u32 arg2)
 		__asmeq("%3", R2_STR)
 		__asmeq("%4", R3_STR)
 #ifdef REQUIRES_SEC
-			".arch_extension sec\n"
+		".arch_extension sec\n"
 #endif
 		"smc	#0\n"
 		: "=r" (r0)
 		: "r" (r0), "r" (r1), "r" (r2), "r" (r3));
 
-	printk(KERN_INFO "Ret: 0x%08X\n", r0);
+	sktrc(SKTRC_HASH(1, 0, 2, 15), "Ret: 0x%08X", r0);
 	return r0;
 }
 EXPORT_SYMBOL(scm_call_atomic2);
@@ -997,8 +1029,9 @@ s32 scm_call_atomic3(u32 svc, u32 cmd, u32 arg1, u32 arg2, u32 arg3)
 	register u32 r3 asm("r3") = arg2;
 	register u32 r4 asm("r4") = arg3;
 
-    printk(KERN_INFO "scm_call_atomic3\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x\n", svc, cmd, arg1, arg2);
+	sktrc(SKTRC_HASH(1, 0, 2, 16),
+	      "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x", svc, cmd, arg1,
+	      arg2);
 
 	asm volatile(
 		__asmeq("%0", R0_STR)
@@ -1008,13 +1041,13 @@ s32 scm_call_atomic3(u32 svc, u32 cmd, u32 arg1, u32 arg2, u32 arg3)
 		__asmeq("%4", R3_STR)
 		__asmeq("%5", R4_STR)
 #ifdef REQUIRES_SEC
-			".arch_extension sec\n"
+		".arch_extension sec\n"
 #endif
 		"smc	#0\n"
 		: "=r" (r0)
 		: "r" (r0), "r" (r1), "r" (r2), "r" (r3), "r" (r4));
 
-	printk(KERN_INFO "Ret: 0x%08X\n", r0);
+	sktrc(SKTRC_HASH(1, 0, 2, 16), "Ret: 0x%08X", r0);
 	return r0;
 }
 EXPORT_SYMBOL(scm_call_atomic3);
@@ -1031,8 +1064,9 @@ s32 scm_call_atomic4_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 	register u32 r4 asm("r4") = arg3;
 	register u32 r5 asm("r5") = arg4;
 
-    printk(KERN_INFO "scm_call_atomic4_3\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x, ARG3: 0x%x, ARG4: 0x%x\n", svc, cmd, arg1, arg2, arg3, arg4);
+	sktrc(SKTRC_HASH(1, 0, 2, 17),
+	      "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x, ARG3: 0x%x, ARG4: 0x%x",
+	      svc, cmd, arg1, arg2, arg3, arg4);
 
 	asm volatile(
 		__asmeq("%0", R0_STR)
@@ -1043,7 +1077,7 @@ s32 scm_call_atomic4_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 		__asmeq("%5", R2_STR)
 		__asmeq("%6", R3_STR)
 #ifdef REQUIRES_SEC
-			".arch_extension sec\n"
+		".arch_extension sec\n"
 #endif
 		"smc	#0\n"
 		: "=r" (r0), "=r" (r1), "=r" (r2)
@@ -1051,13 +1085,13 @@ s32 scm_call_atomic4_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 	ret = r0;
 	if (ret1)
 		*ret1 = r1;
-	printk(KERN_INFO "Ret1: 0x%08X\n", r1);
+	sktrc(SKTRC_HASH(1, 0, 2, 17), "Ret1: 0x%08X", r1);
 
 	if (ret2)
 		*ret2 = r2;
 
-    printk(KERN_INFO "Ret2: 0x%08X\n", r2);
-    printk(KERN_INFO "Ret: 0x%08X\n", r0);
+	sktrc(SKTRC_HASH(1, 0, 2, 17), "Ret2: 0x%08X", r2);
+	sktrc(SKTRC_HASH(1, 0, 2, 17), "Ret: 0x%08X", r0);
 
 	return r0;
 }
@@ -1092,8 +1126,9 @@ s32 scm_call_atomic5_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 	register u32 r5 asm("r5") = arg4;
 	register u32 r6 asm("r6") = arg5;
 
-	printk(KERN_INFO "scm_call_atomic5_3\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x, ARG3: 0x%x, ARG4: 0x%x, ARG5: 0x%x\n", svc, cmd, arg1, arg2, arg3, arg4, arg5);
+	sktrc(SKTRC_HASH(1, 0, 2, 18),
+	      "SVC_ID: %d, CMD_ID: %d, ARG1: 0x%x, ARG2: 0x%x, ARG3: 0x%x, ARG4: 0x%x, ARG5: 0x%x",
+	      svc, cmd, arg1, arg2, arg3, arg4, arg5);
 
 
 	asm volatile(
@@ -1106,24 +1141,24 @@ s32 scm_call_atomic5_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 		__asmeq("%6", R2_STR)
 		__asmeq("%7", R3_STR)
 #ifdef REQUIRES_SEC
-			".arch_extension sec\n"
+		".arch_extension sec\n"
 #endif
 		"smc	#0\n"
 		: "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3)
 		: "r" (r0), "r" (r1), "r" (r2), "r" (r3), "r" (r4), "r" (r5),
-		 "r" (r6));
+		  "r" (r6));
 	ret = r0;
 
 	if (ret1)
 		*ret1 = r1;
-    printk(KERN_INFO "Ret1: 0x%08X\n", r1);
+	sktrc(SKTRC_HASH(1, 0, 2, 18), "Ret1: 0x%08X", r1);
 	if (ret2)
 		*ret2 = r2;
-	printk(KERN_INFO "Ret2: 0x%08X\n", r2);
+	sktrc(SKTRC_HASH(1, 0, 2, 18), "Ret2: 0x%08X", r2);
 	if (ret3)
 		*ret3 = r3;
-    printk(KERN_INFO "Ret3: 0x%08X\n", r3);
-    printk(KERN_INFO "Ret: 0x%08X\n", r0);
+	sktrc(SKTRC_HASH(1, 0, 2, 18), "Ret3: 0x%08X", r3);
+	sktrc(SKTRC_HASH(1, 0, 2, 18), "Ret: 0x%08X", r0);
 	return r0;
 }
 EXPORT_SYMBOL(scm_call_atomic5_3);
@@ -1170,12 +1205,14 @@ EXPORT_SYMBOL(scm_get_version);
 u32 scm_io_read(phys_addr_t address)
 {
 	if (!is_scm_armv8()) {
+		sktrc(SKTRC_HASH(1, 0, 2, 11), "scm_call_atomic1");
 		return scm_call_atomic1(SCM_SVC_IO, SCM_IO_READ, address);
 	} else {
 		struct scm_desc desc = {
 			.args[0] = address,
 			.arginfo = SCM_ARGS(1),
 		};
+		sktrc(SKTRC_HASH(1, 0, 2, 11), "scm_call2_atomic");
 		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_IO, SCM_IO_READ), &desc);
 		return desc.ret[0];
 	}
@@ -1187,6 +1224,7 @@ int scm_io_write(phys_addr_t address, u32 val)
 	int ret;
 
 	if (!is_scm_armv8()) {
+		sktrc(SKTRC_HASH(1, 0, 2, 12), "scm_call_atomic2");
 		ret = scm_call_atomic2(SCM_SVC_IO, SCM_IO_WRITE, address, val);
 	} else {
 		struct scm_desc desc = {
@@ -1194,6 +1232,7 @@ int scm_io_write(phys_addr_t address, u32 val)
 			.args[1] = val,
 			.arginfo = SCM_ARGS(2),
 		};
+		sktrc(SKTRC_HASH(1, 0, 2, 12), "scm_call2_atomic");
 		ret = scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_IO, SCM_IO_WRITE),
 				       &desc);
 	}
@@ -1210,6 +1249,7 @@ int scm_is_call_available(u32 svc_id, u32 cmd_id)
 		u32 ret_val = 0;
 		u32 svc_cmd = (svc_id << 10) | cmd_id;
 
+		sktrc(SKTRC_HASH(1, 0, 2, 6), "scm_call");
 		ret = scm_call(SCM_SVC_INFO, IS_CALL_AVAIL_CMD, &svc_cmd,
 			sizeof(svc_cmd), &ret_val, sizeof(ret_val));
 		if (ret)
@@ -1220,6 +1260,10 @@ int scm_is_call_available(u32 svc_id, u32 cmd_id)
 	desc.arginfo = SCM_ARGS(1);
 	desc.args[0] = SCM_SIP_FNID(svc_id, cmd_id);
 	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_INFO, IS_CALL_AVAIL_CMD), &desc);
+	/* sktrc(SKTRC_HASH(1, 0, 2, 6), */
+	/*       "scm_call2: SVC_ID+CMD_ID: %08X | Args: %#llx, %#llx, %#llx, x5:%#llx", */
+	/*       SCM_SIP_FNID(SCM_SVC_INFO, IS_CALL_AVAIL_CMD), desc.args[0], */
+	/*       desc.args[1], desc.args[2], desc.x5); */
 	if (ret)
 		return ret;
 
@@ -1236,6 +1280,7 @@ int scm_get_feat_version(u32 feat)
 	if (!is_scm_armv8()) {
 		if (scm_is_call_available(SCM_SVC_INFO, GET_FEAT_VERSION_CMD)) {
 			u32 version;
+			sktrc(SKTRC_HASH(1, 0, 2, 7), "scm_call");
 			if (!scm_call(SCM_SVC_INFO, GET_FEAT_VERSION_CMD, &feat,
 				      sizeof(feat), &version, sizeof(version)))
 				return version;
@@ -1251,6 +1296,10 @@ int scm_get_feat_version(u32 feat)
 	desc.arginfo = SCM_ARGS(1);
 	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_INFO, GET_FEAT_VERSION_CMD),
 			&desc);
+	/* sktrc(SKTRC_HASH(1, 0, 2, 7), */
+	/*       "scm_call2: SVC_ID+CMD_ID: %08X | Args: %#llx, %#llx, %#llx, x5:%#llx", */
+	/*       SCM_SIP_FNID(SCM_SVC_INFO, GET_FEAT_VERSION_CMD), desc.args[0], */
+	/*       desc.args[1], desc.args[2], desc.x5); */
 	if (!ret)
 		return desc.ret[0];
 
@@ -1274,15 +1323,21 @@ int scm_restore_sec_cfg(u32 device_id, u32 spare, int *scm_ret)
 	if (IS_ERR_OR_NULL(scm_ret))
 		return -EINVAL;
 
-	if (!is_scm_armv8())
+	if (!is_scm_armv8()) {
+		sktrc(SKTRC_HASH(1, 0, 2, 8), "scm_call");
 		return scm_call(SCM_SVC_MP, RESTORE_SEC_CFG, &cfg, sizeof(cfg),
 				scm_ret, sizeof(*scm_ret));
+	}
 
 	desc.args[0] = device_id;
 	desc.args[1] = spare;
 	desc.arginfo = SCM_ARGS(2);
 
 	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP, RESTORE_SEC_CFG), &desc);
+	/* sktrc(SKTRC_HASH(1, 0, 2, 8), */
+	/*       "scm_call2: SVC_ID+CMD_ID: %08X | Args: %#llx, %#llx, %#llx, x5:%#llx", */
+	/*       SCM_SIP_FNID(SCM_SVC_MP, RESTORE_SEC_CFG), desc.args[0], */
+	/*       desc.args[1], desc.args[2], desc.x5); */
 	if (ret)
 		return ret;
 
@@ -1306,17 +1361,22 @@ bool scm_is_secure_device(void)
 	desc.args[0] = 0;
 	desc.arginfo = 0;
 	if (!is_scm_armv8()) {
+		sktrc(SKTRC_HASH(1, 0, 2, 9), "scm_call");
 		ret = scm_call(SCM_SVC_INFO, TZ_INFO_GET_SECURE_STATE, NULL,
 			0, &resp, sizeof(resp));
 	} else {
 		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_INFO,
 				TZ_INFO_GET_SECURE_STATE),
 				&desc);
+		/* sktrc(SKTRC_HASH(1, 0, 2, 9), */
+		/*       "scm_call2: SVC_ID+CMD_ID: %08X | Args: %#llx, %#llx, %#llx, x5:%#llx", */
+		/*       SCM_SIP_FNID(SCM_SVC_INFO, TZ_INFO_GET_SECURE_STATE), */
+		/*       desc.args[0], desc.args[1], desc.args[2], desc.x5); */
 		resp = desc.ret[0];
 	}
 
 	if (ret) {
-		pr_err("%s: SCM call failed\n", __func__);
+		sktrc(SKTRC_HASH(1, 0, 2, 9), "%s: SCM call failed", __func__);
 		return false;
 	}
 
@@ -1347,27 +1407,33 @@ static int __scm_call_no_remap_error(const struct scm_command *cmd)
 int scm_call_with_command(u32 svc_id, u32 cmd_id, u32 len, u32 buf_offset, 
                           u32 resp_hdr_offset)
 {
-    struct scm_command cmd;
-    int ret;
-    cmd.len = len;
-    cmd.buf_offset = buf_offset;
-    cmd.resp_hdr_offset = resp_hdr_offset;
+	struct scm_command cmd;
+	int ret;
+	cmd.len = len;
+	cmd.buf_offset = buf_offset;
+	cmd.resp_hdr_offset = resp_hdr_offset;
 	cmd.id = (svc_id << 10) | cmd_id;
 
-	printk(KERN_INFO "Sending Fully formed SCM Command\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d\n", svc_id, cmd_id);
-	printk(KERN_INFO "len: %08X, buf_offset: %08X, resp_hdr_offset: %08X\n", cmd.len, cmd.buf_offset, cmd.resp_hdr_offset);
-    //printk(KERN_INFO "Response buffer address: virtual-%08X, physical-%08lX\n", ((unsigned)&cmd)+resp_hdr_offset, virt_to_phys((void*)(((unsigned)&cmd)+resp_hdr_offset)));
-    mutex_lock(&scm_lock);
-    ret = __scm_call(&cmd);
+	sktrc(SKTRC_HASH(1, 0, 2, 21), "Sending Fully formed SCM Command");
+	sktrc(SKTRC_HASH(1, 0, 2, 21), "SVC_ID: %d, CMD_ID: %d", svc_id,
+	      cmd_id);
+	sktrc(SKTRC_HASH(1, 0, 2, 21),
+	      "len: %08X, buf_offset: %08X, resp_hdr_offset: %08X", cmd.len,
+	      cmd.buf_offset, cmd.resp_hdr_offset);
+	/* sktrc(SKTRC_HASH(1, 0, 2, 21), */
+	/*       "Response buffer address: virtual-%08X, physical-%08lX", */
+	/*       ((unsigned)&cmd) + resp_hdr_offset, */
+	/*       virt_to_phys((void*)(((unsigned)&cmd) + resp_hdr_offset))); */
+	mutex_lock(&scm_lock);
+	ret = __scm_call(&cmd);
 	mutex_unlock(&scm_lock);
 	if (ret)
 		goto out;
 
-	printk(KERN_INFO "Finished SCM Call");
+	sktrc(SKTRC_HASH(1, 0, 2, 21), "Finished SCM Call");
 
 out:
-    printk(KERN_INFO "Ret: 0x%08X\n", ret);
+	sktrc(SKTRC_HASH(1, 0, 2, 21), "Ret: 0x%08X", ret);
 	return ret;
 }
 EXPORT_SYMBOL(scm_call_with_command);
@@ -1390,24 +1456,32 @@ int scm_call_no_remap_error(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t 
 	struct scm_command *cmd;
 	struct scm_response *rsp;
 	unsigned long start, end;
-    size_t len;
-    
+	size_t len;
+
 	//DEBUG: Printing information about the outgoing request
-	printk(KERN_INFO "Sending SCM Command (no remap!)\n");
-	printk(KERN_INFO "SVC_ID: %d, CMD_ID: %d\n", svc_id, cmd_id);
+	sktrc(SKTRC_HASH(1, 0, 2, 20), "Sending SCM Command (no remap!)");
+	sktrc(SKTRC_HASH(1, 0, 2, 20), "SVC_ID: %d, CMD_ID: %d", svc_id,
+	      cmd_id);
 	if (cmd_buf != NULL) {
 		size_t i;
-		char* buffer = kmalloc(2*cmd_len+1, GFP_ATOMIC);
+		char* buffer = kmalloc(2 * cmd_len + 1, GFP_ATOMIC);
+		if (IS_ERR_OR_NULL(buffer)) {
+			sktrc(SKTRC_HASH(1, 0, 2, 20),
+			      "failed to alloc memory (2 * %zu + 1) (fail1)",
+			      cmd_len);
+			goto fail1;
+		}
 		buffer[0] = '\0';
-		for (i=0; i<cmd_len; i++) {
+		for (i = 0; i < cmd_len; ++i) {
 			char sub_buf[3];
-			sprintf(sub_buf, "%02X", ((unsigned char*)cmd_buf)[i]); 
+			snprintf(sub_buf, 3, "%02X", ((unsigned char*)cmd_buf)[i]); 
 			strcat(buffer, sub_buf);
 		}
-		printk(KERN_INFO "CMD BUF: %s\n", buffer);
+		sktrc(SKTRC_HASH(1, 0, 2, 20), "CMD BUF: %s", buffer);
 		kfree(buffer);
 	}
 
+fail1:
 	len = SCM_BUF_LEN(cmd_len, resp_len);
 
 	if (len == 0 || PAGE_ALIGN(len) < len)
@@ -1424,6 +1498,7 @@ int scm_call_no_remap_error(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t 
 		memcpy(scm_get_command_buffer(cmd), cmd_buf, cmd_len);
 
 	mutex_lock(&scm_lock);
+	sktrc(SKTRC_HASH(1, 0, 2, 20), "__scm_call_no_remap_error");
 	ret = __scm_call_no_remap_error(cmd);
 	mutex_unlock(&scm_lock);
 	if (ret)
@@ -1443,20 +1518,27 @@ int scm_call_no_remap_error(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t 
 		memcpy(resp_buf, scm_get_response_buffer(rsp), resp_len);
 
 	//DEBUG
-	printk(KERN_INFO "Finished SCM Call");
+	sktrc(SKTRC_HASH(1, 0, 2, 20), "Finished SCM Call");
 	if (resp_buf != NULL) {
 		size_t i;
-                char* buffer = kmalloc(2*resp_len+1, GFP_ATOMIC);
+                char* buffer = kmalloc(2 * resp_len + 1, GFP_ATOMIC);
+		if (IS_ERR_OR_NULL(buffer)) {
+			sktrc(SKTRC_HASH(1, 0, 2, 20),
+			      "failed to alloc memory (2 * %zu + 1) (fail2)",
+			      cmd_len);
+			goto fail2;
+		}
                 buffer[0] = '\0';
-                for (i=0; i<resp_len; i++) {
+                for (i = 0; i < resp_len; ++i) {
                         char sub_buf[3];
-                        sprintf(sub_buf, "%02X", ((unsigned char*)resp_buf)[i]);
+                        snprintf(sub_buf, 3, "%02X", ((unsigned char*)resp_buf)[i]);
                         strcat(buffer, sub_buf);
                 }
-		printk(KERN_INFO "RESP BUF: %s\n", buffer);
+		sktrc(SKTRC_HASH(1, 0, 2, 20), "RESP BUF: %s\n", buffer);
                 kfree(buffer);
 	}
 
+fail2:
 out:
 	kfree(cmd);
 	return ret;

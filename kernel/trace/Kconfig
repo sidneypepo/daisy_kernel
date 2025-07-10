@@ -645,3 +645,8 @@ endif # FTRACE
 
 endif # TRACING_SUPPORT
 
+config SKTRC
+	tristate "SKTRC - Simple Kernel Trace"
+	default y
+	help
+	  Check https://github.com/sidneypepo/sktrc.

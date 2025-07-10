@@ -10,6 +10,8 @@
  * GNU General Public License for more details.
  */
 
+#include <trace/sktrc.h>
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <soc/qcom/scm.h>
@@ -42,10 +44,10 @@ static int __init xpu_err_fatal_init(void)
 		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP, XPU_ERR_FATAL), &desc);
 
 	if (ret != 0)
-		pr_warn("Failed to set XPU violations as fatal errors: %d\n",
-			ret);
+		sktrc(0x00030001, "Failed to set XPU violations as fatal errors: %d",
+		      ret);
 	else
-		pr_info("Configuring XPU violations to be fatal errors\n");
+		sktrc(0x00030001, "Configuring XPU violations to be fatal errors");
 
 	return ret;
 }

@@ -74,3 +74,5 @@ obj-$(CONFIG_IPC_LOGGING) += ipc_logging_debug.o
 endif
 
 libftrace-y := ftrace.o
+
+obj-$(CONFIG_SKTRC) += sktrc.o

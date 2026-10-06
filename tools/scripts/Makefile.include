@@ -82,3 +82,5 @@ ifneq ($(findstring $(MAKEFLAGS),s),s)
 	QUIET_INSTALL  = @printf '  INSTALL  %s\n' $1;
   endif
 endif
+
+pound := \#
